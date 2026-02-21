@@ -142,8 +142,8 @@ def main():
         #     number of epochs for each case.
 
         ### YOUR CODE HERE ###
-        corpus = open(args.finetune_corpus_path, 'r', encoding='utf-8').read()
-        dataset = dataset.NameDataset(pretrain_dataset, corpus)
+        ft_corpus = open(args.finetune_corpus_path, 'r', encoding='utf-8').read()
+        ft_dataset = dataset.NameDataset(pretrain_dataset, ft_corpus)
 
         if args.reading_params_path is None:
             ft_config = trainer.TrainerConfig(
@@ -159,7 +159,7 @@ def main():
         else:
             ...
 
-        t = trainer.Trainer(model, dataset, None, ft_config)
+        t = trainer.Trainer(model, ft_dataset, None, ft_config)
         t.train()
         ### END YOUR CODE ###
 
