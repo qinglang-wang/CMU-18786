@@ -68,7 +68,7 @@ def main():
     if args.variant == 'vanilla':
         # TODO: [part c] Make some model here
         ### YOUR CODE HERE ###
-        pass
+        model = models.GPT(mconf).to(device)
         ### END YOUR CODE ###
     elif args.variant == 'rope':
         # TODO: [part g] Make some other model here
@@ -142,8 +142,27 @@ def main():
         #     number of epochs for each case.
 
         ### YOUR CODE HERE ###
-        pass
+        corpus = open(args.finetune_corpus_path, 'r', encoding='utf-8').read()
+        dataset = dataset.NameDataset(pretrain_dataset, corpus)
+
+        if args.reading_params_path is None:
+            ft_config = trainer.TrainerConfig(
+                max_epochs=75,
+                batch_size=256,
+                learning_rate=args.finetune_lr,
+                lr_decay=True,
+                warmup_tokens=512*20,
+                final_tokens=200*len(pretrain_dataset)*block_size,
+                writer=writer,
+                ckpt_path=args.writing_params_path
+            )
+        else:
+            ...
+
+        t = trainer.Trainer(model, dataset, None, ft_config)
+        t.train()
         ### END YOUR CODE ###
+
     elif args.function == 'evaluate':
         assert args.outputs_path is not None
         assert args.reading_params_path is not None
