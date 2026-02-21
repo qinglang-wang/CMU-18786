@@ -104,8 +104,21 @@ def main():
         # writer=writer
 
         ### YOUR CODE HERE ###
-        pass
+        pt_config = trainer.TrainerConfig(
+            max_epochs=650,
+            batch_size=128,
+            learning_rate=args.pretrain_lr,
+            lr_decay=True,
+            warmup_tokens=512*20,
+            final_tokens=650*len(pretrain_dataset)*block_size,
+            writer=writer,
+            ckpt_path=args.writing_params_path
+        )
+
+        t = trainer.Trainer(model, pretrain_dataset, None, pt_config)
+        t.train()
         ### END YOUR CODE ###
+
     elif args.function == 'finetune':
         assert args.writing_params_path is not None
         assert args.finetune_corpus_path is not None
@@ -157,7 +170,17 @@ def main():
                 ckpt_path=args.writing_params_path
             )
         else:
-            ...
+            model.load_state_dict(torch.load(args.reading_params_path))
+            ft_config = trainer.TrainerConfig(
+                max_epochs=10,
+                batch_size=256,
+                learning_rate=args.finetune_lr,
+                lr_decay=True,
+                warmup_tokens=512*20,
+                final_tokens=200*len(pretrain_dataset)*block_size,
+                writer=writer,
+                ckpt_path=args.writing_params_path
+            )
 
         t = trainer.Trainer(model, ft_dataset, None, ft_config)
         t.train()
