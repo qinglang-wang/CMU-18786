@@ -125,7 +125,7 @@ class CausalSelfAttention(nn.Module):
         # 6. re-assemble all head outputs side by side
         y = None
         ### YOUR CODE HERE ###
-        att = (q @ k.transpose(-2, -1)) / (1. / math.sqrt(k.size(-1)))
+        att = (q @ k.transpose(-2, -1)) * (1. / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
         att = F.softmax(att, dim=-1)
         att = self.attn_drop(att)
