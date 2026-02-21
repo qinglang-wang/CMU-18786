@@ -97,7 +97,7 @@ class CausalSelfAttention(nn.Module):
         # TODO: causal mask to ensure that attention is only applied to the left in the input sequence
         mask = None
         ### YOUR CODE HERE ###
-        pass
+        mask = torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size)
         ### END YOUR CODE ###
 
         self.register_buffer("mask", mask)
@@ -125,7 +125,12 @@ class CausalSelfAttention(nn.Module):
         # 6. re-assemble all head outputs side by side
         y = None
         ### YOUR CODE HERE ###
-        pass
+        att = (q @ k.transpose(-2, -1)) / (1. / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
+        att = F.softmax(att, dim=-1)
+        att = self.attn_drop(att)
+        y = att @ v
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
         ### END YOUR CODE ###
 
         # output projection
