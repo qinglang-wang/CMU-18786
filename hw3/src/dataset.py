@@ -106,16 +106,15 @@ class CharCorruptionDataset(Dataset):
         # Random truncation
         max_len = min(len(document), int(self.block_size * 7 / 8))
         trunc_len = random.randint(4, max_len)
-        trunc_start = random.randint(0, len(document) - trunc_len) if len(document) > trunc_len else 0
-        truncated_doc = document[trunc_start: trunc_start + trunc_len]
+        truncated_doc = document[:trunc_len]
 
         # Random mask
-        mask_len = random.randint(1, trunc_len // 2)
+        mask_len = random.randint(1, max(1, trunc_len // 2))
         mask_start = random.randint(0, trunc_len - mask_len)
         prefix = truncated_doc[:mask_start]
         masked_content = truncated_doc[mask_start: mask_start + mask_len]
         suffix = truncated_doc[mask_start + mask_len:]
-        
+
         # Rearrange: [prefix] MASK_CHAR [suffix] MASK_CHAR [masked_content] [pads]
         unpadded_string = prefix + self.MASK_CHAR + suffix + self.MASK_CHAR + masked_content
         
