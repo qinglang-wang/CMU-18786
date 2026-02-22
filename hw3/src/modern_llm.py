@@ -43,7 +43,7 @@ def evaluate_modern_llm(model_id, eval_corpus_path):
         text_v1 = tokenizer.apply_chat_template(messages_v1, tokenize=False, add_generation_prompt=True)
         inputs_v1 = tokenizer([text_v1], return_tensors="pt").to(device)
         
-        outputs_v1 = model.generate(**inputs_v1, max_new_tokens=150, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        outputs_v1 = model.generate(**inputs_v1, max_new_tokens=50, do_sample=False, pad_token_id=tokenizer.eos_token_id)
         pred_v1 = tokenizer.decode(outputs_v1[0][inputs_v1.input_ids.shape[1]:], skip_special_tokens=True).strip()
 
         # Inference: Variant 2
@@ -54,7 +54,7 @@ def evaluate_modern_llm(model_id, eval_corpus_path):
         text_v2 = tokenizer.apply_chat_template(messages_v2, tokenize=False, add_generation_prompt=True)
         inputs_v2 = tokenizer([text_v2], return_tensors="pt").to(device)
         
-        outputs_v2 = model.generate(**inputs_v2, max_new_tokens=150, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        outputs_v2 = model.generate(**inputs_v2, max_new_tokens=50, do_sample=False, pad_token_id=tokenizer.eos_token_id)
         pred_v2 = tokenizer.decode(outputs_v2[0][inputs_v2.input_ids.shape[1]:], skip_special_tokens=True).strip()
 
         # Modification 2：Output parse
