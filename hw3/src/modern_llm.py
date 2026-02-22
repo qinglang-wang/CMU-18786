@@ -23,7 +23,7 @@ def evaluate_modern_llm(model_id, eval_corpus_path):
 
     logs = []
     
-    # Modification 1：System Prompt
+    # Modification 1: System Prompt
     system_instruction = "You are a helpful factual assistant. Answer the user's question strictly with ONLY the exact name of the city, state, or country. Do not write full sentences. Do not use <think> tags. Just output the location name."
 
     for line in tqdm(lines, desc="Evaluating"):
@@ -57,7 +57,7 @@ def evaluate_modern_llm(model_id, eval_corpus_path):
         outputs_v2 = model.generate(**inputs_v2, max_new_tokens=50, do_sample=False, pad_token_id=tokenizer.eos_token_id)
         pred_v2 = tokenizer.decode(outputs_v2[0][inputs_v2.input_ids.shape[1]:], skip_special_tokens=True).strip()
 
-        # Modification 2：Output parse
+        # Modification 2: Output parse
         is_correct_v1 = answer.lower() in pred_v1.lower()
         is_correct_v2 = answer.lower() in pred_v2.lower()
 
