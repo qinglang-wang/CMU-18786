@@ -19,7 +19,7 @@ CIFAR100_CLASSES = [
     'tulip', 'turtle', 'wardrobe', 'whale', 'willow_tree', 'wolf', 'woman', 'worm'
 ]
 
-def get_cifar100_loaders(batch_size=128, augment=False, num_workers=2):
+def get_cifar100_loaders(batch_size=128, augment=False, num_workers=4):
     """
     Load CIFAR-100 dataset with optional augmentation.
 
@@ -57,7 +57,7 @@ def get_cifar100_loaders(batch_size=128, augment=False, num_workers=2):
     train_dataset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=train_transform)
     val_dataset = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=val_transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, prefetch_factor=4, persistent_workers=True, num_workers=num_workers)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True, prefetch_factor=4, persistent_workers=True, num_workers=num_workers)
 
     return train_loader, val_loader
