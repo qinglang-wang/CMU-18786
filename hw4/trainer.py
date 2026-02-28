@@ -45,7 +45,7 @@ def train_model(model, train_loader, val_loader, config):
             logits = model(X)
 
             loss = criterion(logits, y)
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             loss.backward()
             optimizer.step()
 
