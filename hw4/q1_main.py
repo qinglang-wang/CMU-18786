@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from data import get_cifar100_loaders
 from models import FCNN, CNN
 from trainer import train_model
@@ -18,9 +19,11 @@ def main():
     fcnn = FCNN(input_dim=3*32*32, hidden_dims=[1024, 512, 256], num_classes=100, dropout=0.4)
     fcnn_config = dict(
         epochs=50,
+        optimizer='adam',
         lr=4e-3,
         weight_decay=1e-4,
         scheduler='cosine',
+        criterion=nn.CrossEntropyLoss,
         device=device,
         save_path='results/q1_fcnn_best.pth',
     )
@@ -33,9 +36,11 @@ def main():
     cnn = CNN(num_classes=100)
     cnn_config = dict(
         epochs=10,
+        optimizer='adam',
         lr=3e-3,
         weight_decay=1e-4,
         scheduler='cosine',
+        criterion=nn.CrossEntropyLoss,
         device=device,
         save_path='results/q1_cnn_best.pth',
     )
