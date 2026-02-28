@@ -1,6 +1,7 @@
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
+from PIL import Image
 
 CIFAR100_CLASSES = [
     'apple', 'aquarium_fish', 'baby', 'bear', 'beaver', 'bed', 'bee', 'beetle',
@@ -19,6 +20,32 @@ CIFAR100_CLASSES = [
     'tulip', 'turtle', 'wardrobe', 'whale', 'willow_tree', 'wolf', 'woman', 'worm'
 ]
 
+
+class PreloadedCIFAR100(Dataset):
+    """
+    Loads the entire CIFAR100 dataset into RAM at initialization to eliminate disk I/O.
+    Images are stored as numpy arrays and converted to PIL Image on the fly for torchvision transforms.
+    """
+    def __init__(self, root='./data', train=True, transform=None):
+        self.dataset = torchvision.datasets.CIFAR100(root=root, train=train, download=True)
+        self.transform = transform
+
+        self.data = self.dataset.data
+        self.targets = self.dataset.targets
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        img, target = self.data[idx], self.targets[idx]
+
+        img = Image.fromarray(img)
+        if self.transform is not None:
+            img = self.transform(img)
+
+        return img, target
+
+
 def get_cifar100_loaders(batch_size=128, augment=False, num_workers=4):
     """
     Load CIFAR-100 dataset with optional augmentation.
@@ -34,7 +61,7 @@ def get_cifar100_loaders(batch_size=128, augment=False, num_workers=4):
             [
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
-                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                # transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
                 transforms.ToTensor(),
                 transforms.Normalize(mean, std),
             ]
@@ -54,10 +81,26 @@ def get_cifar100_loaders(batch_size=128, augment=False, num_workers=4):
         ]
     )
 
-    train_dataset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=train_transform)
-    val_dataset = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=val_transform)
+    train_dataset = PreloadedCIFAR100(root='./data', train=True, transform=train_transform)
+    val_dataset = PreloadedCIFAR100(root='./data', train=False, transform=val_transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, prefetch_factor=4, persistent_workers=True, num_workers=num_workers)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True, prefetch_factor=4, persistent_workers=True, num_workers=num_workers)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=True,
+        prefetch_factor=2,
+        persistent_workers=True,
+        num_workers=num_workers
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=True,
+        prefetch_factor=2,
+        persistent_workers=True,
+        num_workers=num_workers
+    )
 
     return train_loader, val_loader
