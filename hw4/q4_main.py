@@ -67,7 +67,7 @@ def main():
     frcnn_preds = evaluate_detector(frcnn, all_image_ids, images_info, img_dir)
     frcnn_map50 = compute_map50(frcnn_preds, all_gts)
 
-    yolo8 = YOLODetector('yolov8n.pt')
+    yolo8 = YOLODetector('ckpts/yolov8n.pt')
     yolo8_preds = evaluate_detector(yolo8, all_image_ids, images_info, img_dir)
     yolo8_map50 = compute_map50(yolo8_preds, all_gts)
 
