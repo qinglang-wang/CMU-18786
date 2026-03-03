@@ -1,7 +1,10 @@
+import os
+import json
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image
+from collections import defaultdict
 
 CIFAR100_CLASSES = [
     'apple', 'aquarium_fish', 'baby', 'bear', 'beaver', 'bed', 'bee', 'beetle',
@@ -61,7 +64,7 @@ def get_cifar100_loaders(batch_size=128, augment=False, num_workers=4):
             [
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
-                # transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
                 transforms.ToTensor(),
                 transforms.Normalize(mean, std),
             ]
@@ -104,3 +107,43 @@ def get_cifar100_loaders(batch_size=128, augment=False, num_workers=4):
     )
 
     return train_loader, val_loader
+
+# YOLOv8 uses 0-79 class indices; COCO uses specific category IDs.
+# This maps YOLO index -> COCO category ID.
+YOLO_TO_COCO = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+    22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42,
+    43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+    62, 63, 64, 65, 67, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84,
+    85, 86, 87, 88, 89, 90
+]
+
+def load_coco_annotations(coco_dir='data'):
+    """
+    Load COCO 2017 val annotations.
+
+    [output]
+    * gt_by_image: dict mapping image_id -> list of ground truth entries
+    * images_info: dict mapping image_id -> image metadata
+    * cat_id_to_name: dict mapping category_id -> category name
+    * all_gts: flat list of all ground truth entries
+    """
+    ann_file = os.path.join(coco_dir, 'annotations', 'instances_val2017.json')
+    with open(ann_file, 'r') as f:
+        coco = json.load(f)
+
+    images = {img['id']: img for img in coco['images']}
+    cat_id_to_name = {c['id']: c['name'] for c in coco['categories']}
+
+    gt_by_image = defaultdict(list)
+    all_ground_truths = []
+    for ann in coco['annotations']:
+        if ann.get('iscrowd', 0):
+            continue
+        x, y, w, h = ann['bbox']
+        bbox = [x, y, x + w, y + h]
+        gt_entry = {'image_id': ann['image_id'], 'category_id': ann['category_id'], 'bbox': bbox}
+        gt_by_image[ann['image_id']].append(gt_entry)
+        all_ground_truths.append(gt_entry)
+
+    return gt_by_image, images, cat_id_to_name, all_ground_truths
