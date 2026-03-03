@@ -4,12 +4,9 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.models as tv_models
 import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import numpy as np
 from PIL import Image
 from typing import List, Tuple
-from utils import set_seed
+from utils import set_seed, draw_boxes, nms
 
 matplotlib.use('Agg')
 torch.set_float32_matmul_precision('high')
@@ -90,8 +87,8 @@ class NaiveObjectDetector:
                 if w > W or h > H:
                     continue
 
-                stride_x = max(int(w * stride_ratio), 16)
-                stride_y = max(int(h * stride_ratio), 16)
+                stride_x = max(int(w * stride_ratio), 4)
+                stride_y = max(int(h * stride_ratio), 4)
 
                 for y in range(0, H - h + 1, stride_y):
                     for x in range(0, W - w + 1, stride_x):
@@ -100,57 +97,6 @@ class NaiveObjectDetector:
                         if label:
                             boxes.append((x, y, x + w, y + h, label, conf))
         return boxes
-
-    @staticmethod
-    def compute_iou(box1: Tuple, box2: Tuple) -> float:
-        """Compute IoU between two boxes in (x, y, x, y)."""
-        x1 = max(box1[0], box2[0])
-        y1 = max(box1[1], box2[1])
-        x2 = min(box1[2], box2[2])
-        y2 = min(box1[3], box2[3])
-        inter = max(0, x2 - x1) * max(0, y2 - y1)
-
-        area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
-        area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
-        union = area1 + area2 - inter
-        return inter / union if union > 0 else 0
-
-    @staticmethod
-    def nms(boxes: List, iou_threshold: float=0.4) -> List:
-        """Non-Maximum Suppression on boxes in (x, y, x, y, label, confidence)."""
-        if not boxes:
-            return []
-
-        # Sort by descending confidence
-        boxes = sorted(boxes, key=lambda b: b[5], reverse=True)
-        keep = []
-
-        while boxes:
-            best = boxes.pop(0)
-            keep.append(best)
-            boxes = [b for b in boxes if b[4] != best[4] or NaiveObjectDetector.compute_iou(best[:4], b[:4]) < iou_threshold]
-
-        return keep
-
-    @staticmethod
-    def draw_boxes(image: Image.Image, boxes: List, title: str='', save_to: str=None):
-        """Draw bounding boxes on image."""
-        fig, ax = plt.subplots(1, figsize=(10, 8))
-        ax.imshow(np.array(image))
-
-        colors = {'cat': 'lime', 'dog': 'deepskyblue'}
-        for x1, y1, x2, y2, label, conf in boxes:
-            color = colors.get(label, 'red')
-            rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor=color, facecolor='none')
-            ax.add_patch(rect)
-            ax.text(x1, y1 - 4, f'{label} {conf:.2f}', color=color, fontsize=10, fontweight='bold', backgroundcolor='black')
-
-        ax.set_title(title, fontsize=14)
-        ax.axis('off')
-        if save_to:
-            os.makedirs(os.path.dirname(save_to), exist_ok=True)
-            fig.savefig(save_to, bbox_inches='tight', dpi=150)
-        plt.close(fig)
 
 
 def main():
@@ -168,13 +114,12 @@ def main():
 
         # Baseline: 5x5 grid
         baseline_boxes = detector.baseline_detection(image, threshold=0.05)
-        detector.draw_boxes(image, baseline_boxes, title=f'Baseline 5x5 Grid - {image_file}', save_to=f'results/q3_baseline_{image_name}.png')
+        draw_boxes(image, baseline_boxes, title=f'Baseline 5x5 Grid - {image_file}', save_to=f'results/q3_baseline_{image_name}.png')
 
         # Improved: multi-scale sliding window + NMS
-        raw_boxes = detector.sliding_window_detection(image, window_sizes=[64, 96, 128, 160, 192], aspect_ratios=[0.5, 0.75, 1.0, 1.5, 2.0], stride_ratio=0.15, threshold=0.5)
-        nms_boxes = detector.nms(raw_boxes, iou_threshold=0.05)
-        # nms_boxes = raw_boxes
-        detector.draw_boxes(image, nms_boxes, title=f'Multi-Scale + NMS - {image_file}', save_to=f'results/q3_improved_{image_name}.png')
+        raw_boxes = detector.sliding_window_detection(image, window_sizes=[64, 96, 128, 160, 192, 224], aspect_ratios=[0.5, 0.75, 1.0, 1.5, 2.0], stride_ratio=0.10, threshold=0.6)
+        nms_boxes = nms(raw_boxes, iou_threshold=0.01)
+        draw_boxes(image, nms_boxes, title=f'Multi-Scale + NMS - {image_file}', save_to=f'results/q3_improved_{image_name}.png')
 
 if __name__ == '__main__':
     main()
