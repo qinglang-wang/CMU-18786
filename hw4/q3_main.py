@@ -14,6 +14,7 @@ from utils import set_seed
 matplotlib.use('Agg')
 torch.set_float32_matmul_precision('high')
 
+
 class NaiveObjectDetector:
     # ImageNet class indices for cats and dogs
     CAT_INDICES = list(range(281, 286))  # cat: 281-285
@@ -44,16 +45,13 @@ class NaiveObjectDetector:
         """
         x = self.transform(patch_img).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            logits = self.model(x)
-            probs = F.softmax(logits, dim=1).squeeze()
+            logits = self.model(x).squeeze(0)
+            probs = F.softmax(logits, dim=0)
 
         cat_probs = probs[self.CAT_INDICES]
         dog_probs = probs[self.DOG_INDICES]
 
-        if max(cat_probs.sum(), dog_probs.sum()) < threshold:
-            return None, 0.0
-
-        return max([('cat', cat_probs.max().item()), ('dog', dog_probs.max().item())], key=lambda x: x[1])
+        return max([('cat', cat_probs.max().item()), ('dog', dog_probs.max().item()), (None, threshold)], key=lambda x: x[1])
 
     def baseline_detection(self, image: Image.Image, grid_size: int=5, threshold: float=0.15) -> List:
         """
@@ -75,9 +73,9 @@ class NaiveObjectDetector:
                     boxes.append((x1, y1, x2, y2, label, conf))
         return boxes
 
-    def sliding_window_detection(self, image: Image.Image, window_sizes: List[int]=[64, 96, 128, 160, 192], stride_ratio: float=0.5, threshold: float=0.2) -> List:
+    def sliding_window_detection(self, image: Image.Image, window_sizes: List[int]=[64, 96, 128, 160, 192], aspect_ratios: List[float]=[0.5, 1.0, 2.0], stride_ratio: float=0.2, threshold: float=0.5) -> List:
         """
-        Multi-scale sliding window detection with varying window sizes.
+        Multi-scale sliding window detection with varying window sizes and aspect ratios.
         Returns:
             List (x1, y1, x2, y2, label, confidence)
         """
@@ -85,13 +83,22 @@ class NaiveObjectDetector:
         boxes = []
 
         for window_size in window_sizes:
-            stride = max(int(window_size * stride_ratio), 16)
-            for y in range(0, H - window_size + 1, stride):
-                for x in range(0, W - window_size + 1, stride):
-                    patch = image.crop((x, y, x + window_size, y + window_size))
-                    label, conf = self.classify_patch(patch, threshold)
-                    if label:
-                        boxes.append((x, y, x + window_size, y + window_size, label, conf))
+            for ar in aspect_ratios:
+                w = int(window_size * (ar ** 0.5))
+                h = int(window_size / (ar ** 0.5))
+
+                if w > W or h > H:
+                    continue
+
+                stride_x = max(int(w * stride_ratio), 16)
+                stride_y = max(int(h * stride_ratio), 16)
+
+                for y in range(0, H - h + 1, stride_y):
+                    for x in range(0, W - w + 1, stride_x):
+                        patch = image.crop((x, y, x + w, y + h))
+                        label, conf = self.classify_patch(patch, threshold)
+                        if label:
+                            boxes.append((x, y, x + w, y + h, label, conf))
         return boxes
 
     @staticmethod
@@ -160,12 +167,13 @@ def main():
         image_name = os.path.splitext(image_file)[0]
 
         # Baseline: 5x5 grid
-        baseline_boxes = detector.baseline_detection(image, threshold=0.0)
+        baseline_boxes = detector.baseline_detection(image, threshold=0.05)
         detector.draw_boxes(image, baseline_boxes, title=f'Baseline 5x5 Grid - {image_file}', save_to=f'results/q3_baseline_{image_name}.png')
 
         # Improved: multi-scale sliding window + NMS
-        raw_boxes = detector.sliding_window_detection(image, window_sizes=[64, 96, 128, 160, 192], stride_ratio=0.5, threshold=0.2)
-        nms_boxes = detector.nms(raw_boxes, iou_threshold=0.3)
+        raw_boxes = detector.sliding_window_detection(image, window_sizes=[64, 96, 128, 160, 192], aspect_ratios=[0.5, 0.75, 1.0, 1.5, 2.0], stride_ratio=0.15, threshold=0.5)
+        nms_boxes = detector.nms(raw_boxes, iou_threshold=0.05)
+        # nms_boxes = raw_boxes
         detector.draw_boxes(image, nms_boxes, title=f'Multi-Scale + NMS - {image_file}', save_to=f'results/q3_improved_{image_name}.png')
 
 if __name__ == '__main__':
