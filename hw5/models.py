@@ -78,11 +78,11 @@ class DCGenerator(nn.Module):
         ##   FILL THIS IN: CREATE ARCHITECTURE   ##
         ###########################################
 
-        self.up_conv1 = 
-        self.up_conv2 = 
-        self.up_conv3 = 
-        self.up_conv4 = 
-        self.up_conv5 = 
+        self.up_conv1 = conv(noise_size, conv_dim * 8, 4, 1, 3, 'instance', 'relu')
+        self.up_conv2 = up_conv(conv_dim * 8, conv_dim * 4, 3, 1, 1, 2, norm='instance', activ='relu')
+        self.up_conv3 = up_conv(conv_dim * 4, conv_dim * 2, 3, 1, 1, 2, norm='instance', activ='relu')
+        self.up_conv4 = up_conv(conv_dim * 2, conv_dim, 3, 1, 1, 2, norm='instance', activ='relu')
+        self.up_conv5 = up_conv(conv_dim, 3, 3, 1, 1, 2, norm=None, activ='tanh')
 
     def forward(self, z):
         """
@@ -99,8 +99,12 @@ class DCGenerator(nn.Module):
         ###########################################
         ##   FILL THIS IN: FORWARD PASS   ##
         ###########################################
-
-        pass
+        z = self.up_conv1(z)
+        z = self.up_conv2(z)
+        z = self.up_conv3(z)
+        z = self.up_conv4(z)
+        z = self.up_conv5(z)
+        return z
 
 
 class ResnetBlock(nn.Module):
@@ -123,11 +127,11 @@ class DCDiscriminator(nn.Module):
 
     def __init__(self, conv_dim=64, norm='instance'):
         super().__init__()
-        self.conv1 = conv(3, 32, 4, 2, 1, norm, False, 'relu')
-        self.conv2 = 
-        self.conv3 = 
-        self.conv4 = 
-        self.conv5 = 
+        self.conv1 = conv(3, conv_dim, 4, 2, 1, norm, False, 'relu')
+        self.conv2 = conv(conv_dim, conv_dim * 2, 4, 2, 1, norm, False, 'relu')
+        self.conv3 = conv(conv_dim * 2, conv_dim * 4, 4, 2, 1, norm, False, 'relu')
+        self.conv4 = conv(conv_dim * 4, conv_dim * 8, 4, 2, 1, norm, False, 'relu')
+        self.conv5 = conv(conv_dim * 8, 1, 4, 1, 0, norm=None, init_zero_weights=True)
 
     def forward(self, x):
         """Forward pass, x is (B, C, H, W)."""

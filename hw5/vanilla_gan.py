@@ -166,17 +166,22 @@ def training_loop(train_dataloader, opts):
 
             # TRAIN THE DISCRIMINATOR
             # 1. Compute the discriminator loss on real images
-            D_real_loss = 
+            D_real_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                D(real_images), utils.to_var(torch.ones(real_images.size(0)))
+            )
 
             # 2. Sample noise
-            noise = 
+            noise = sample_noise(real_images.size(0), opts.noise_size)
 
             # 3. Generate fake images from the noise
-            fake_images = 
+            fake_images = G(noise)
 
             # 4. Compute the discriminator loss on the fake images
-            D_fake_loss = 
-            D_total_loss = 
+            D_fake_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                D(fake_images.detach()),
+                utils.to_var(torch.zeros(real_images.size(0)))
+            )
+            D_total_loss = D_real_loss + D_fake_loss
 
             # update the discriminator D
             d_optimizer.zero_grad()
@@ -185,13 +190,15 @@ def training_loop(train_dataloader, opts):
 
             # TRAIN THE GENERATOR
             # 1. Sample noise
-            noise = 
+            noise = sample_noise(real_images.size(0), opts.noise_size)
 
             # 2. Generate fake images from the noise
-            fake_images = 
+            fake_images = G(noise)
 
             # 3. Compute the generator loss
-            G_loss = 
+            G_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                D(fake_images), utils.to_var(torch.ones(real_images.size(0)))
+            )
 
             # update the generator G
             g_optimizer.zero_grad()
