@@ -78,7 +78,7 @@ class DCGenerator(nn.Module):
         ##   FILL THIS IN: CREATE ARCHITECTURE   ##
         ###########################################
 
-        self.up_conv1 = conv(noise_size, conv_dim * 8, 4, 1, 3, 'instance', 'relu')
+        self.up_conv1 = conv(noise_size, conv_dim * 8, 4, 1, 3, norm='instance', activ='relu')
         self.up_conv2 = up_conv(conv_dim * 8, conv_dim * 4, 3, 1, 1, 2, norm='instance', activ='relu')
         self.up_conv3 = up_conv(conv_dim * 4, conv_dim * 2, 3, 1, 1, 2, norm='instance', activ='relu')
         self.up_conv4 = up_conv(conv_dim * 2, conv_dim, 3, 1, 1, 2, norm='instance', activ='relu')
