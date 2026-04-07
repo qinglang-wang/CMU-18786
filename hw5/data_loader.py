@@ -5,6 +5,8 @@ import PIL.Image as Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
+DATA_ROOT = os.path.join(os.path.dirname(__file__), 'data')
+
 
 class CustomDataSet(Dataset):
     """Load images under folders"""
@@ -51,7 +53,7 @@ def get_data_loader(data_path, opts):
         )
 
     dataset = CustomDataSet(
-        os.path.join('data/', data_path), opts.ext, train_transform
+        os.path.join(DATA_ROOT, data_path), opts.ext, train_transform
     )
     dloader = DataLoader(
         dataset=dataset, batch_size=opts.batch_size,

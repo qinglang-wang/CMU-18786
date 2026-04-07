@@ -11,6 +11,7 @@
 
 import argparse
 import os
+import shutil
 
 import imageio
 import numpy as np
@@ -70,7 +71,7 @@ def create_image_grid(array, ncols=None):
 
     if not ncols:
         ncols = int(np.sqrt(num_images))
-    nrows = int(np.math.floor(num_images / float(ncols)))
+    nrows = num_images // ncols
     result = np.zeros(
         (cell_h * nrows, cell_w * ncols, channels),
         dtype=array.dtype
@@ -89,8 +90,8 @@ def create_image_grid(array, ncols=None):
 
 def checkpoint(iteration, G, D, opts):
     """Save the parameters of the generator G and discriminator D."""
-    G_path = os.path.join(opts.checkpoint_dir, 'G_iter%d.pkl' % iteration)
-    D_path = os.path.join(opts.checkpoint_dir, 'D_iter%d.pkl' % iteration)
+    G_path = os.path.join(opts.checkpoint_dir, f'G_iter{iteration}.pkl')
+    D_path = os.path.join(opts.checkpoint_dir, f'D_iter{iteration}.pkl')
     torch.save(G.state_dict(), G_path)
     torch.save(D.state_dict(), D_path)
 
@@ -103,9 +104,9 @@ def save_samples(G, fixed_noise, iteration, opts):
     grid = np.uint8(255 * (grid + 1) / 2)
 
     # merged = merge_images(X, fake_Y, opts)
-    path = os.path.join(opts.sample_dir, 'sample-{:06d}.png'.format(iteration))
+    path = os.path.join(opts.sample_dir, f'sample-{iteration:06d}.png')
     imageio.imwrite(path, grid)
-    print('Saved {}'.format(path))
+    print(f'Saved {path}')
 
 
 def save_images(images, iteration, opts, name):
@@ -113,11 +114,11 @@ def save_images(images, iteration, opts, name):
 
     path = os.path.join(
         opts.sample_dir,
-        '{:s}-{:06d}.png'.format(name, iteration)
+        f'{name}-{iteration:06d}.png'
     )
     grid = np.uint8(255 * (grid + 1) / 2)
     imageio.imwrite(path, grid)
-    print('Saved {}'.format(path))
+    print(f'Saved {path}')
 
 
 def sample_noise(batch_size, dim):
@@ -210,11 +211,10 @@ def training_loop(train_dataloader, opts):
             # Print the log info
             if iteration % opts.log_step == 0:
                 print(
-                    'Iteration [{:4d}/{:4d}] | D_real_loss: {:6.4f} | '
-                    'D_fake_loss: {:6.4f} | G_loss: {:6.4f}'.format(
-                        iteration, total_train_iters, D_real_loss.item(),
-                        D_fake_loss.item(), G_loss.item()
-                    )
+                    f'Iteration [{iteration:4d}/{total_train_iters:4d}] | '
+                    f'D_real_loss: {D_real_loss.item():6.4f} | '
+                    f'D_fake_loss: {D_fake_loss.item():6.4f} | '
+                    f'G_loss: {G_loss.item():6.4f}'
                 )
                 logger.add_scalar('D/fake', D_fake_loss, iteration)
                 logger.add_scalar('D/real', D_real_loss, iteration)
@@ -286,12 +286,11 @@ if __name__ == '__main__':
     batch_size = opts.batch_size
     opts.sample_dir = os.path.join(
         'output/', opts.sample_dir,
-        '%s_%s' % (os.path.basename(opts.data), opts.data_preprocess)
+        f'{os.path.basename(opts.data)}_{opts.data_preprocess}'
     )
 
     if os.path.exists(opts.sample_dir):
-        cmd = 'rm %s/*' % opts.sample_dir
-        os.system(cmd)
+        shutil.rmtree(opts.sample_dir)
     logger = SummaryWriter(opts.sample_dir)
     print(opts)
     main(opts)
