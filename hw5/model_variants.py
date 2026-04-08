@@ -208,3 +208,146 @@ class SNDCDiscriminator(nn.Module):
         x = self.conv4(x)
         x = self.conv5(x)
         return x.squeeze()
+
+
+def split_latent_dims(noise_size, num_levels):
+    """Split a latent vector into nearly equal chunks for hierarchical injection."""
+    if noise_size < num_levels:
+        raise ValueError(f'noise_size={noise_size} must be at least num_levels={num_levels}.')
+
+    base = noise_size // num_levels
+    chunk_sizes = [base] * num_levels
+    chunk_sizes[0] += noise_size - sum(chunk_sizes)
+    return chunk_sizes
+
+
+class LatentAffine(nn.Module):
+    """Map a latent chunk to per-channel affine modulation parameters."""
+    def __init__(self, latent_dim, num_channels):
+        super().__init__()
+        self.to_scale = nn.Linear(latent_dim, num_channels)
+        self.to_shift = nn.Linear(latent_dim, num_channels)
+
+    def forward(self, x, latent_chunk):
+        scale = self.to_scale(latent_chunk).unsqueeze(2).unsqueeze(3)
+        shift = self.to_shift(latent_chunk).unsqueeze(2).unsqueeze(3)
+        return x * (1 + scale) + shift
+
+
+class HierarchicalGeneratorBlock(nn.Module):
+    """Residual upsampling block modulated by a scale-specific latent chunk."""
+    def __init__(self, in_channels, out_channels, latent_dim):
+        super().__init__()
+        self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.norm1 = nn.InstanceNorm2d(out_channels, affine=False)
+        self.mod1 = LatentAffine(latent_dim, out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.norm2 = nn.InstanceNorm2d(out_channels, affine=False)
+        self.mod2 = LatentAffine(latent_dim, out_channels)
+        self.skip = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+
+    def forward(self, x, latent_chunk):
+        residual = self.skip(self.upsample(x))
+
+        x = self.upsample(x)
+        x = self.conv1(x)
+        x = self.norm1(x)
+        x = self.mod1(x, latent_chunk)
+        x = F.relu(x, inplace=True)
+
+        x = self.conv2(x)
+        x = self.norm2(x)
+        x = self.mod2(x, latent_chunk)
+        x = x + residual
+        return F.relu(x, inplace=True)
+
+
+class HierarchicalLatentGenerator(nn.Module):
+    """Generator with latent chunks injected from 4x4 through 64x64."""
+    def __init__(self, noise_size, conv_dim=64):
+        super().__init__()
+        self.chunk_sizes = split_latent_dims(noise_size, num_levels=5)
+        self.base_channels = conv_dim * 8
+        self.final_channels = max(conv_dim // 2, 16)
+
+        self.to_4x4 = nn.Linear(self.chunk_sizes[0], self.base_channels * 4 * 4)
+        self.block8 = HierarchicalGeneratorBlock(self.base_channels, conv_dim * 4, self.chunk_sizes[1])
+        self.block16 = HierarchicalGeneratorBlock(conv_dim * 4, conv_dim * 2, self.chunk_sizes[2])
+        self.block32 = HierarchicalGeneratorBlock(conv_dim * 2, conv_dim, self.chunk_sizes[3])
+        self.block64 = HierarchicalGeneratorBlock(conv_dim, self.final_channels, self.chunk_sizes[4])
+        self.to_rgb = nn.Sequential(
+            nn.Conv2d(self.final_channels, 3, kernel_size=3, padding=1),
+            nn.Tanh()
+        )
+
+    def forward(self, z):
+        latent = z.view(z.size(0), -1)
+        latent_chunks = torch.split(latent, self.chunk_sizes, dim=1)
+
+        x = self.to_4x4(latent_chunks[0])
+        x = x.view(z.size(0), self.base_channels, 4, 4)
+        x = F.relu(x, inplace=True)
+
+        x = self.block8(x, latent_chunks[1])
+        x = self.block16(x, latent_chunks[2])
+        x = self.block32(x, latent_chunks[3])
+        x = self.block64(x, latent_chunks[4])
+        return self.to_rgb(x)
+
+
+class MinibatchStdDev(nn.Module):
+    """Append one channel containing the batch-wide standard deviation."""
+    def __init__(self, eps=1e-8):
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, x):
+        std = torch.sqrt(x.var(dim=0, unbiased=False) + self.eps)
+        mean_std = std.mean().view(1, 1, 1, 1)
+        std_channel = mean_std.expand(x.size(0), 1, x.size(2), x.size(3))
+        return torch.cat([x, std_channel], dim=1)
+
+
+class MultiScaleDiscriminator(nn.Module):
+    """Discriminator that scores both full-resolution and half-resolution views."""
+    def __init__(self, conv_dim=64, norm='instance'):
+        super().__init__()
+        self.high_conv1 = conv(3, conv_dim, 4, 2, 1, norm, False, 'leaky')
+        self.high_conv2 = conv(conv_dim, conv_dim * 2, 4, 2, 1, norm, False, 'leaky')
+        self.high_conv3 = conv(conv_dim * 2, conv_dim * 4, 4, 2, 1, norm, False, 'leaky')
+        self.high_conv4 = conv(conv_dim * 4, conv_dim * 8, 4, 2, 1, norm, False, 'leaky')
+        self.high_stddev = MinibatchStdDev()
+        self.high_head = nn.Sequential(
+            conv(conv_dim * 8 + 1, conv_dim * 8, 3, 1, 1, norm, False, 'leaky'),
+            nn.Conv2d(conv_dim * 8, 1, kernel_size=4, stride=1, padding=0)
+        )
+
+        self.low_conv1 = conv(3, conv_dim, 4, 2, 1, norm, False, 'leaky')
+        self.low_conv2 = conv(conv_dim, conv_dim * 2, 4, 2, 1, norm, False, 'leaky')
+        self.low_conv3 = conv(conv_dim * 2, conv_dim * 4, 4, 2, 1, norm, False, 'leaky')
+        self.low_stddev = MinibatchStdDev()
+        self.low_head = nn.Sequential(
+            conv(conv_dim * 4 + 1, conv_dim * 4, 3, 1, 1, norm, False, 'leaky'),
+            nn.Conv2d(conv_dim * 4, 1, kernel_size=4, stride=1, padding=0)
+        )
+
+        self.score_fusion = nn.Linear(2, 1)
+
+    def forward(self, x):
+        high = self.high_conv1(x)
+        high = self.high_conv2(high)
+        high = self.high_conv3(high)
+        high = self.high_conv4(high)
+        high = self.high_stddev(high)
+        high = self.high_head(high).flatten(1)
+
+        low = F.avg_pool2d(x, kernel_size=2)
+        low = self.low_conv1(low)
+        low = self.low_conv2(low)
+        low = self.low_conv3(low)
+        low = self.low_stddev(low)
+        low = self.low_head(low).flatten(1)
+
+        scores = torch.cat([high, low], dim=1)
+        return self.score_fusion(scores).squeeze(1)

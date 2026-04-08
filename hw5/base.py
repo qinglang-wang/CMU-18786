@@ -1,6 +1,5 @@
 import argparse
 import os
-import shutil
 
 import imageio
 import numpy as np
@@ -178,9 +177,6 @@ class BaseGANTrainer:
 
     def prepare_run(self):
         """Create output directories and the TensorBoard logger."""
-        if os.path.exists(self.opts.sample_dir):
-            shutil.rmtree(self.opts.sample_dir)
-
         utils.create_dir(self.opts.checkpoint_dir)
         utils.create_dir(self.opts.sample_dir)
         self.logger = SummaryWriter(self.opts.sample_dir)
