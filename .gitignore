@@ -1,6 +1,9 @@
 # Customised
 **/data/**
 **/ckpts/**
+**/checkpoints**/**
+**/output/**
+**/report/**
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
